@@ -228,9 +228,9 @@ Este proyecto es desarrollado con fines académicos para la Universidad Peruana 
 
 Para consultas sobre el proyecto:
 
-- Nicole Sánchez - nicole.sanchez@upc.edu.pe
-- Melisa Sulca - melisa.sulca@upc.edu.pe
-- Jack Roque - jack.roque@upc.edu.pe
+- Nicole Sánchez - u202419766@upc.edu.pe
+- Melisa Sulca - u202224602@upc.edu.pe
+- Jack Roque - u20221C448@upc.edu.pe
 
 ---
 
