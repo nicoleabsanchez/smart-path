@@ -1,10 +1,3 @@
-"""
-SmartPath+ - Sistema de Optimización de Rutas Ferroviarias del Reino Unido
-Universidad Peruana de Ciencias Aplicadas
-Curso: Complejidad Algorítmica
-
-Aplicación Streamlit para planificación de viajes en tren
-"""
 
 import streamlit as st
 import pandas as pd
