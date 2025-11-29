@@ -14,6 +14,7 @@ from graph_algorithms import RailwayGraph
 import time
 
 
+
 # Configuración de la página
 st.set_page_config(
     page_title="SmartPath+ | Optimización de Rutas Ferroviarias",
@@ -98,18 +99,16 @@ def load_data():
 
 def create_map(stations_df, route_details=None):
     """Crea un mapa interactivo con las estaciones usando OpenStreetMap"""
-    # Mapa base con todas las estaciones
     fig = go.Figure()
     
-    # Todas las estaciones en gris más visible
     fig.add_trace(go.Scattermapbox(
         lon=stations_df['long'],
         lat=stations_df['lat'],
         mode='markers',
         marker=dict(
-            size=6,  # Aumentado de 4 a 6
-            color='rgba(100, 100, 100, 0.7)',  # Gris más oscuro y más opaco
-            allowoverlap=True  # Permite que se superpongan sin desaparecer
+            size=6,
+            color='rgba(100, 100, 100, 0.7)',
+            allowoverlap=True
         ),
         text=stations_df['name'],
         hovertemplate='<b>%{text}</b><extra></extra>',
@@ -117,86 +116,56 @@ def create_map(stations_df, route_details=None):
         showlegend=True
     ))
     
-    # Si hay una ruta, resaltarla
     if route_details:
         route_lats = [detail['lat'] for detail in route_details]
         route_lons = [detail['lon'] for detail in route_details]
         route_names = [detail['name'] for detail in route_details]
         
-        # Línea de la ruta con efecto más elegante
         fig.add_trace(go.Scattermapbox(
             lon=route_lons,
             lat=route_lats,
             mode='lines+markers',
             line=dict(width=4, color='#1f77b4'),
-            marker=dict(
-                size=10, 
-                color='#1f77b4',
-            ),
+            marker=dict(size=10, color='#1f77b4'),
             text=route_names,
             hovertemplate='<b>%{text}</b><extra></extra>',
             name='Ruta',
             showlegend=True
         ))
         
-        # Resaltar ORIGEN en verde con diseño mejorado
         fig.add_trace(go.Scattermapbox(
             lon=[route_lons[0]],
             lat=[route_lats[0]],
             mode='markers',
-            marker=dict(
-                size=20, 
-                color='#28a745',
-            ),
+            marker=dict(size=20, color='#28a745'),
             text=[f"🏁 ORIGEN: {route_names[0]}"],
             hovertemplate='<b>%{text}</b><extra></extra>',
             name='🏁 Origen',
             showlegend=True
         ))
         
-        # Resaltar DESTINO en rojo con diseño mejorado (al final para que se dibuje encima)
         fig.add_trace(go.Scattermapbox(
             lon=[route_lons[-1]],
             lat=[route_lats[-1]],
             mode='markers+text',
-            marker=dict(
-                size=20, 
-                color='#dc3545',
-            ),
+            marker=dict(size=20, color='#dc3545'),
             text=[f"🎯 DESTINO: {route_names[-1]}"],
             hovertemplate='<b>%{text}</b><extra></extra>',
             name='🎯 Destino',
             showlegend=True
         ))
     
-    # Configurar el mapa con OpenStreetMap
     fig.update_layout(
         height=600,
         margin={"r":0,"t":5,"l":0,"b":60},
         showlegend=True,
         mapbox=dict(
-            style="open-street-map",  # Estilo OpenStreetMap con calles
-            center=dict(lat=54.5, lon=-3),  # Centro en Reino Unido
-            zoom=5  # Nivel de zoom inicial
+            style="open-street-map",
+            center=dict(lat=54.5, lon=-3),
+            zoom=5
         ),
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=-0.08,
-            xanchor="center",
-            x=0.5,
-            bgcolor="rgba(255, 255, 255, 0.98)",
-            bordercolor="rgba(50, 50, 50, 0.5)",
-            borderwidth=2,
-            font=dict(size=14, color='#000000', family='Arial, sans-serif'),
-            itemsizing='constant',
-            itemwidth=50,
-            tracegroupgap=15
-        ),
-        paper_bgcolor='rgb(255, 255, 255)',
-        autosize=True,
         hovermode='closest',
-        dragmode='pan'  # Pan con arrastrar, zoom con scroll
+        dragmode='pan'
     )
     
     return fig
@@ -208,29 +177,38 @@ def display_route_details(graph, route_info):
         st.error(route_info['message'])
         return
     
-    # Información general de la ruta
     st.success("✅ ¡Ruta encontrada con éxito!")
-    
-    # Calcular distancia total y número de paradas
-    total_distance = route_info['metric'] if route_info['algorithm'] == 'dijkstra' else 0
+
     num_stops = len(route_info['path'])
     
-    # Si usamos BFS, necesitamos calcular la distancia total
-    if route_info['algorithm'] == 'bfs':
+    # Para Dijkstra y A*, la métrica es directamente la distancia
+    if route_info['algorithm'] in ['dijkstra', 'a_star']:
+        total_distance = float(route_info['metric'])
+    # Para BFS, calculamos la distancia sumando todas las aristas
+    elif route_info['algorithm'] == 'bfs':
         route_details_temp = graph.get_route_details(route_info['path'])
-        total_distance = sum(detail.get('distance_to_next', 0) for detail in route_details_temp)
+        total_distance = sum(detail.get('distance_to_next', 0) for detail in route_details_temp)    
+    else:
+        total_distance = 0
     
-    # Calcular precio y tiempo
     estimated_price = graph.calculate_price(total_distance)
     estimated_time = graph.calculate_time(total_distance, num_stops)
     
-    # Convertir tiempo a formato legible
     hours = int(estimated_time)
     minutes = int((estimated_time - hours) * 60)
     time_str = f"{hours}h {minutes}min" if hours > 0 else f"{minutes}min"
     
     col1, col2, col3, col4, col5 = st.columns(5)
     
+    # Determinar el nombre del algoritmo
+    algorithm_names = {
+        'dijkstra': 'Dijkstra (menor distancia)',
+        'bfs': 'BFS (menos paradas)',
+        'a_star': 'A* (menor distancia + heurística)'
+    }
+    algorithm_display = algorithm_names.get(route_info['algorithm'], route_info['algorithm'])
+    
+
     with col1:
         st.markdown("#### 🚉 Origen")
         st.markdown(f"""
@@ -273,24 +251,21 @@ def display_route_details(graph, route_info):
         </div>
         """, unsafe_allow_html=True)
     
-    # Info adicional
     st.markdown(f"""
     <div style="background-color: #f8f9fa; padding: 0.8rem; border-radius: 0.3rem; margin-top: 1rem;">
         <p style="margin: 0; font-size: 0.9rem; color: #666;">
             🔢 <strong>{num_stops}</strong> paradas • 
             🚄 Velocidad promedio: <strong>80 km/h</strong> • 
-            💡 Algoritmo usado: <strong>{'Dijkstra (menor distancia)' if route_info['algorithm'] == 'dijkstra' else 'BFS (menos paradas)'}</strong>
+            💡 Algoritmo usado: <strong>{algorithm_display}</strong>
         </p>
     </div>
     """, unsafe_allow_html=True)
-    
-    # Detalles paso a paso
+        
     st.markdown("---")
     st.subheader("📍 Itinerario Detallado")
     
     route_details = graph.get_route_details(route_info['path'])
     
-    # Crear DataFrame para mostrar
     itinerary_data = []
     for detail in route_details:
         row = {
@@ -310,7 +285,6 @@ def display_route_details(graph, route_info):
     itinerary_df = pd.DataFrame(itinerary_data)
     st.dataframe(itinerary_df, width='stretch', hide_index=True)
     
-    # Preparar datos para el mapa
     route_details_with_coords = []
     for detail in route_details:
         station_info = graph.get_station_info(detail['code'])
@@ -323,26 +297,20 @@ def display_route_details(graph, route_info):
     return route_details_with_coords
 
 
+
 def main():
     """Función principal de la aplicación"""
     
-    # Header
     st.markdown('<h1 class="main-header">🚂 SmartPath+</h1>', unsafe_allow_html=True)
-    st.markdown(
-        '<p class="sub-header">Sistema Inteligente de Optimización de Rutas Ferroviarias del Reino Unido</p>',
-        unsafe_allow_html=True
-    )
+    st.markdown('<p class="sub-header">Sistema Inteligente de Optimización de Rutas Ferroviarias del Reino Unido</p>', unsafe_allow_html=True)
     
-    # Cargar datos
     with st.spinner('Cargando red ferroviaria...'):
         graph, stations_df, edges_df = load_data()
     
-    # Sidebar - Información del proyecto
     with st.sidebar:
         st.image("https://img.icons8.com/color/96/000000/train.png", width=80)
         st.title("ℹ️ Información")
-        
-        st.markdown("""
+        st.markdown(""" 
         ### Acerca del Proyecto
         
         **SmartPath+** es un sistema de planificación de viajes en tren que utiliza 
@@ -363,7 +331,6 @@ def main():
         
         st.markdown("---")
         
-        # Estadísticas del grafo
         stats = graph.get_statistics()
         st.markdown("### 📊 Estadísticas de la Red")
         st.metric("Estaciones Totales", f"{stats['total_stations']:,}")
@@ -371,80 +338,88 @@ def main():
         st.metric("Ciudades", f"{stats['total_cities']:,}")
         st.metric("Conexiones promedio", stats['avg_connections_per_station'])
     
-    # Tabs principales
     tab1, tab2, tab3 = st.tabs(["🔍 Búsqueda de Rutas", "📊 Visualización", "📖 Documentación"])
-    
+
     with tab1:
         st.header("Planifica tu Viaje")
         
-        col1, col2 = st.columns(2)
+        mode = st.radio("¿Buscar ruta entre ciudades o entre estaciones?", options=["Ciudad a Ciudad", "Estación a Estación"])
         
-        cities = graph.get_cities()
-        
-        with col1:
-            origin_city = st.selectbox(
-                "🏁 Ciudad de Origen",
-                options=cities,
-                index=cities.index("London") if "London" in cities else 0,
-                help="Selecciona la ciudad desde donde iniciarás tu viaje"
+        if mode == "Ciudad a Ciudad":
+            col1, col2 = st.columns(2)
+            
+            cities = graph.get_cities()
+            with col1:
+                origin_city = st.selectbox("🏁 Ciudad de Origen", cities)
+            with col2:
+                destination_city = st.selectbox("🎯 Ciudad de Destino", cities)
+            
+            st.markdown("---")
+            st.subheader("⚙️ Opciones de Optimización")
+            
+            algorithm = st.radio(
+                "Selecciona el criterio de optimización:",
+                options=['dijkstra', 'bfs'],
+                format_func=lambda x: '📏 Menor Distancia (Dijkstra)' if x == 'dijkstra' else '🔢 Menor Número de Paradas (BFS)',
+                horizontal=True,
+                help=""" 
+                - **Dijkstra**: Encuentra la ruta con menor distancia en kilómetros
+                - **BFS**: Encuentra la ruta con menor número de estaciones intermedias
+                """
             )
-        
-        with col2:
-            destination_city = st.selectbox(
-                "🎯 Ciudad de Destino",
-                options=cities,
-                index=cities.index("Manchester") if "Manchester" in cities else 1,
-                help="Selecciona la ciudad a la que deseas viajar"
-            )
-        
-        st.markdown("---")
-        
-        st.subheader("⚙️ Opciones de Optimización")
-        
-        algorithm = st.radio(
-            "Selecciona el criterio de optimización:",
-            options=['dijkstra', 'bfs'],
-            format_func=lambda x: '📏 Menor Distancia (Dijkstra)' if x == 'dijkstra' else '🔢 Menor Número de Paradas (BFS)',
-            horizontal=True,
-            help="""
-            - **Dijkstra**: Encuentra la ruta con menor distancia en kilómetros
-            - **BFS**: Encuentra la ruta con menor número de estaciones intermedias
-            """
-        )
-        
-        st.markdown("---")
-        
-        if st.button("🔎 Buscar Mejor Ruta", type="primary"):
-            if origin_city == destination_city:
-                st.warning("⚠️ Por favor selecciona ciudades diferentes de origen y destino")
-            else:
-                with st.spinner('Calculando la mejor ruta...'):
-                    # Simular procesamiento
-                    progress_bar = st.progress(0)
-                    for i in range(100):
-                        time.sleep(0.01)
-                        progress_bar.progress(i + 1)
-                    
-                    # Buscar ruta
-                    route_info = graph.find_best_route_between_cities(
-                        origin_city,
-                        destination_city,
-                        algorithm
-                    )
-                    
-                    st.markdown("---")
-                    
-                    # Mostrar resultados
-                    route_coords = display_route_details(graph, route_info)
-                    
-                    if route_info['found']:
+            
+            if st.button("🔎 Buscar Mejor Ruta", type="primary"):
+                if origin_city == destination_city:
+                    st.warning("⚠️ Por favor selecciona ciudades diferentes de origen y destino")
+                else:
+                    with st.spinner('Calculando la mejor ruta...'):
+                        route_info = graph.find_best_route_between_cities(origin_city, destination_city, algorithm)
                         st.markdown("---")
-                        st.subheader("🗺️ Visualización de la Ruta")
-                        
-                        # Crear mapa con la ruta
-                        map_fig = create_map(stations_df, route_coords)
-                        st.plotly_chart(map_fig, use_container_width=True)
-    
+                        route_coords = display_route_details(graph, route_info)
+                        if route_info['found']:
+                            st.subheader("🗺️ Visualización de la Ruta")
+                            map_fig = create_map(stations_df, route_coords)
+                            st.plotly_chart(map_fig, use_container_width=True)
+
+        elif mode == "Estación a Estación":
+            # Convertir los códigos de estaciones a nombres
+            stations = list(graph.stations.keys())
+            stations_names = [graph.stations[station]['name'] for station in stations]
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                origin_station_name = st.selectbox("🏁 Estación de Origen", stations_names)
+            with col2:
+                destination_station_name = st.selectbox("🎯 Estación de Destino", stations_names)
+            
+            # CORRECTO
+            origin_station_code = [station for station, info in graph.stations.items() if info['name'] == origin_station_name][0]
+            destination_station_code = [station for station, info in graph.stations.items() if info['name'] == destination_station_name][0] 
+            st.markdown("---")
+            st.subheader("⚙️ Opciones de Optimización")
+            
+            # Solo A* se muestra en Estación a Estación
+            algorithm = st.radio(
+                "Selecciona el criterio de optimización:",
+                options=['a_star'],
+                format_func=lambda x: '✨ A* (Menor Distancia)',
+                horizontal=True
+            )
+            
+            if st.button("🔎 Buscar Mejor Ruta", type="primary"):
+                if origin_station_name == destination_station_name:
+                    st.warning("⚠️ Por favor selecciona estaciones diferentes de origen y destino")
+                else:
+                    with st.spinner('Calculando la mejor ruta...'):
+                        route_info = graph.find_best_route_between_stations(origin_station_code, destination_station_code, algorithm)
+                        st.markdown("---")
+                        route_coords = display_route_details(graph, route_info)
+                        if route_info['found']:
+                            st.subheader("🗺️ Visualización de la Ruta")
+                            map_fig = create_map(stations_df, route_coords)
+                            st.plotly_chart(map_fig, use_container_width=True)
+
+
     with tab2:
         st.header("📊 Visualización de la Red Ferroviaria")
         
@@ -621,8 +596,7 @@ def main():
     st.markdown(
         '<p style="text-align: center; color: #666;">© 2025 SmartPath+ | UPC - Complejidad Algorítmica</p>',
         unsafe_allow_html=True
-    )
-
+    )                        
 
 if __name__ == "__main__":
     main()

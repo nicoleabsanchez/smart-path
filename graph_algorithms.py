@@ -1,6 +1,6 @@
 """
 Módulo de algoritmos de grafos para el sistema SmartPath+
-Implementa BFS y Dijkstra para optimización de rutas ferroviarias
+Implementa BFS, Dijkstra y A* para optimización de rutas ferroviarias
 """
 
 import heapq
@@ -310,3 +310,104 @@ class RailwayGraph:
             'total_cities': len(self.get_cities()),
             'avg_connections_per_station': round(self.edges_count / len(self.stations), 2) if self.stations else 0
         }
+    
+    def find_best_route_between_stations(self, origin_station: str, destination_station: str, 
+                                          algorithm: str = 'a_star') -> Dict:
+        """
+        Encuentra la mejor ruta entre dos estaciones usando el algoritmo A*
+        
+        Args:
+            origin_station: Estación de origen
+            destination_station: Estación de destino
+            algorithm: 'a_star' para menor distancia + heurística
+            
+        Returns:
+            Diccionario con información de la mejor ruta encontrada
+        """
+        if algorithm != 'a_star':
+            raise ValueError("El algoritmo seleccionado no es válido. Solo se permite A*.")
+        
+        # Verificar si las estaciones existen
+        if origin_station not in self.stations or destination_station not in self.stations:
+            return {
+                'found': False,
+                'message': 'No se encontraron estaciones de origen o destino'
+            }
+
+        # Usar A* para encontrar la ruta entre estaciones
+        path, distance = self.a_star_shortest_path(origin_station, destination_station)
+        if path:
+            return {
+                'found': True,
+                'origin_station': {'code': origin_station, 'name': self.stations[origin_station]['name']},
+                'destination_station': {'code': destination_station, 'name': self.stations[destination_station]['name']},
+                'path': path,
+                'metric': distance,
+                'algorithm': 'a_star'
+            }
+        
+        return {
+            'found': False,
+            'message': 'No se encontró ruta entre las estaciones'
+        }
+    
+    def a_star_shortest_path(self, start: str, end: str) -> Tuple[List[str], float]:
+        """
+        Algoritmo A* para encontrar el camino más corto usando una heurística
+        
+        Args:
+            start: Código de estación origen
+            end: Código de estación destino
+            
+        Returns:
+            Tupla (camino, distancia_total)
+            camino: Lista de códigos de estaciones
+            distancia_total: Distancia en kilómetros
+        """
+        if start not in self.adjacency_list or end not in self.stations:
+            return [], 0.0
+
+        if start == end:
+            return [start], 0.0
+
+        # Heurística: distancia en línea recta (por ejemplo, usando distancia euclidiana)
+        def heuristic(station: str) -> float:
+            # Aquí puedes definir una heurística basada en la latitud/longitud de las estaciones
+            station_info = self.stations.get(station)
+            if not station_info:
+                return float('inf')
+            # Retorna una distancia heurística, por ejemplo, la distancia en línea recta hacia el destino
+            destination_info = self.stations.get(end)
+            return ((station_info['lat'] - destination_info['lat'])**2 + (station_info['lon'] - destination_info['lon'])**2) ** 0.5
+        
+        # Inicializar distancias y prioridades
+        g_score = {station: float('inf') for station in self.stations}
+        g_score[start] = 0.0
+        f_score = {station: float('inf') for station in self.stations}
+        f_score[start] = heuristic(start)
+        
+        open_set = {start}
+        came_from = {}
+        
+        while open_set:
+            current = min(open_set, key=lambda station: f_score[station])
+            if current == end:
+                path = []
+                while current in came_from:
+                    path.append(current)
+                    current = came_from[current]
+                path.append(start)
+                path.reverse()
+                return path, g_score[end]
+            
+            open_set.remove(current)
+            
+            for neighbor, distance in self.adjacency_list[current]:
+                tentative_g_score = g_score[current] + distance
+                if tentative_g_score < g_score[neighbor]:
+                    came_from[neighbor] = current
+                    g_score[neighbor] = tentative_g_score
+                    f_score[neighbor] = g_score[neighbor] + heuristic(neighbor)
+                    open_set.add(neighbor)
+        
+        return [], 0.0
